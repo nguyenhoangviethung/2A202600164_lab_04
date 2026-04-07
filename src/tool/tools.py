@@ -14,11 +14,11 @@ FLIGHTS_DB = {
         {"airline": "VietJet Air", "departure": "08:30", "arrival": "09:50", "price": 890000, "class": "economy"},
         {"airline": "Bamboo Airways", "departure": "11:00", "arrival": "12:20", "price": 1200000, "class": "economy"},
     ],
-    ("Hà Nội", "Phú Quốc"): [
-        {"airline": "Vietnam Airlines", "departure": "07:00", "arrival": "09:15", "price": 2100000, "class": "economy"},
-        {"airline": "VietJet Air", "departure": "10:00", "arrival": "12:15", "price": 1350000, "class": "economy"},
-        {"airline": "VietJet Air", "departure": "16:00", "arrival": "18:15", "price": 1100000, "class": "economy"},
-    ],
+    # ("Hà Nội", "Phú Quốc"): [
+    #     {"airline": "Vietnam Airlines", "departure": "07:00", "arrival": "09:15", "price": 2100000, "class": "economy"},
+    #     {"airline": "VietJet Air", "departure": "10:00", "arrival": "12:15", "price": 1350000, "class": "economy"},
+    #     {"airline": "VietJet Air", "departure": "16:00", "arrival": "18:15", "price": 1100000, "class": "economy"},
+    # ],
     ("Hà Nội", "Hồ Chí Minh"): [
         {"airline": "Vietnam Airlines", "departure": "06:00", "arrival": "08:10", "price": 1600000, "class": "economy"},
         {"airline": "VietJet Air", "departure": "07:30", "arrival": "09:40", "price": 950000, "class": "economy"},
@@ -64,35 +64,84 @@ HOTELS_DB = {
 @tool
 def search_flights(origin: str, destination: str) -> str:
     """
-    Tìm kiếm các chuyến bay giữa hai thành phố.
+    Tìm kiếm các chuyến bay giữa hai thành phố. Bao gồm cả chuyến bay thẳng và nối chuyến (1 điểm dừng).
     Tham số:
     origin: thành phố khởi hành (VD: 'Hà Nội', 'Hồ Chí Minh')
     destination: thành phố đến (VD: 'Đà Nẵng', 'Phú Quốc')
     """
     logger.info(f"✈️ Đang thực thi 'search_flights' | Khởi hành: {origin} -> Đích: {destination}")
     try:
-        route = (origin, destination)
-        reverse_route = (destination, origin)
-        
-        flights = FLIGHTS_DB.get(route)
-        if not flights:
-            flights = FLIGHTS_DB.get(reverse_route)
+   
+        city_map = {
+            "thành phố hồ chí minh": "Hồ Chí Minh",
+            "tp hồ chí minh": "Hồ Chí Minh",
+            "tphcm": "Hồ Chí Minh",
+            "sài gòn": "Hồ Chí Minh"
+        }
+        norm_origin = city_map.get(origin.lower(), origin)
+        norm_dest = city_map.get(destination.lower(), destination)
+
+        def get_direct_flights(city1, city2):
+            return FLIGHTS_DB.get((city1, city2)) or FLIGHTS_DB.get((city2, city1))
+
+        flights = get_direct_flights(norm_origin, norm_dest)
+
+        if flights:
+            logger.info(f"✅ Đã tìm thấy {len(flights)} chuyến bay thẳng.")
+            result = f"Danh sách chuyến bay THẲNG giữa {norm_origin} và {norm_dest}:\n"
+            for f in flights:
+                price_formatted = f"{f['price']:,}".replace(',', '.')
+                result += f"- {f['airline']}: {f['departure']} - {f['arrival']} | Hạng: {f['class']} | Giá: {price_formatted}₫\n"
+            return result
+
+        logger.info("⚠️ Không có chuyến bay thẳng, hệ thống đang quét các chặng nối chuyến...")
+        connecting_options = []
+
+        all_cities = set()
+        for (c1, c2) in FLIGHTS_DB.keys():
+            all_cities.add(c1)
+            all_cities.add(c2)
+
+        for transit_city in all_cities:
+            if transit_city == norm_origin or transit_city == norm_dest:
+                continue
+
+            leg1 = get_direct_flights(norm_origin, transit_city)
+            leg2 = get_direct_flights(transit_city, norm_dest)
+
+            if leg1 and leg2:
+                for f1 in leg1:
+                    for f2 in leg2:
+                        if f1["arrival"] < f2["departure"]:
+                            connecting_options.append({
+                                "transit": transit_city,
+                                "f1": f1,
+                                "f2": f2,
+                                "total_price": f1["price"] + f2["price"]
+                            })
+
+        if connecting_options:
+            connecting_options.sort(key=lambda x: x["total_price"])
+            logger.info(f"✅ Đã tìm ra {len(connecting_options)} lựa chọn nối chuyến hợp lý.")
             
-        if not flights:
-            logger.warning(f"❌ Không tìm thấy chuyến bay từ {origin} đến {destination}.")
-            return f"Không tìm thấy chuyến bay từ {origin} đến {destination}."
-        
-        logger.info(f"✅ Đã tìm thấy {len(flights)} chuyến bay.")
-        result = f"Danh sách chuyến bay giữa {origin} và {destination}:\n"
-        for f in flights:
-            price_formatted = f"{f['price']:,}".replace(',', '.')
-            result += f"- {f['airline']}: {f['departure']} - {f['arrival']} | Hạng: {f['class']} | Giá: {price_formatted}₫\n"
-            
-        return result
+            result = f"Không có chuyến bay thẳng từ {origin} đến {destination}. Gợi ý các chuyến bay NỐI CHUYẾN (1 điểm dừng):\n"
+            for opt in connecting_options:
+                price_formatted = f"{opt['total_price']:,}".replace(',', '.')
+                transit = opt['transit']
+                f1 = opt['f1']
+                f2 = opt['f2']
+                result += (f"\n📍 Nối chuyến tại {transit} | Tổng giá: {price_formatted}₫\n"
+                           f"  + Chặng 1 ({norm_origin} -> {transit}): {f1['airline']}, {f1['departure']} - {f1['arrival']}\n"
+                           f"  + Chặng 2 ({transit} -> {norm_dest}): {f2['airline']}, {f2['departure']} - {f2['arrival']}\n")
+            return result
+
+        logger.warning(f"❌ Không tìm thấy bất kỳ chuyến bay thẳng lẫn nối chuyến nào từ {norm_origin} đến {norm_dest}.")
+        return f"Rất tiếc, hiện tại không có chuyến bay thẳng hay nối chuyến nào từ {origin} đến {destination}."
+
     except Exception as e:
         logger.exception("❌ Lỗi hệ thống trong search_flights")
         return f"Đã xảy ra lỗi khi tra cứu chuyến bay: {str(e)}"
-
+    
 @tool
 def search_hotels(city: str, max_price_per_night: int = 99999999) -> str:
     """
