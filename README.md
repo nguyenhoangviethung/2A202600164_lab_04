@@ -28,6 +28,7 @@
 ├── .env                     # File chứa OPENAI_API_KEY (Không push lên Git)
 ├── .gitignore               # Cấu hình bỏ qua các file rác/nhạy cảm
 ├── main.py                  # File chạy chính của ứng dụng
+├── app.py                   # Giao diện
 ├── system_prompt.txt        # Lưu trữ Persona, Rules và Constraints của Agent
 ├── test_results.md          # Báo cáo kết quả kiểm thử 5 Test Cases
 └── README.md                # Tài liệu hướng dẫn này
@@ -60,6 +61,16 @@ Khởi động Agent bằng lệnh:
 python main.py
 ```
 Gõ `quit` hoặc `exit` để kết thúc phiên trò chuyện.
+
+### 5. Chạy giao diện
+Khởi động giao diện Agent bằng cách:
+```bash
+streamlit run app.py
+```
+
+### 6. Chống prompt injection
+![alt text](static/image.png)
+
 
 ## 🧪 Kịch bản Kiểm thử (Test Cases)
 
