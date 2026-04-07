@@ -9,6 +9,7 @@ from langchain_core.messages import SystemMessage
 from src.tool.tools import TOOLS
 from src.telemetry.logger import get_logger
 from dotenv import load_dotenv
+from langgraph.checkpoint.memory import MemorySaver
 
 load_dotenv()
 logger = get_logger("AgentCore")
@@ -39,7 +40,7 @@ def agent_node(state: AgentState):
         for tc in response.tool_calls:
             logger.info(f"🤖 Agent quyết định gọi tool: {tc['name']} với tham số {tc['args']}")
     else:
-        logger.info("🤖 Agent trả lời trực tiếp cho khách hàng.")
+        logger.info(f"🤖 Agent trả lời trực tiếp cho khách hàng: {response.content}")
         
     return {"messages": [response]}
 
@@ -53,5 +54,7 @@ builder.add_node("tools", tool_node)
 builder.add_edge(START, "agent")
 builder.add_conditional_edges("agent", tools_condition)
 builder.add_edge("tools", "agent")
+
+memory = MemorySaver()
 
 graph = builder.compile()
